@@ -195,10 +195,66 @@ degiro.searchProduct({text: 'GOOG'})).then(console.log);
 * `limit` _number_ - Results limit. Defaults to 7
 * `offset` _number_ - Results offset. Defaults to 0
 
-### askBidPrice
+### getPriceInfo
+This example gets the basic price info of two products
+```javascript
+degiro.getPriceInfo(['350009261', '955000797']).then(console.log);
+/*[
+  {
+    "issueId": "350009261",
+    "lastPrice": 1135,
+    "lastTime": "22:00:01",
+    "lastDate": "2018-06-01"
+  },
+  {
+    "issueId": "955000797",
+    "lastPrice": 7.621,
+    "lastTime": "17:29:46",
+    "lastDate": "2018-06-01"
+  }
+]*/
+```
+
+This example gets gets the last price of a product
+```javascript
+degiro.getPriceInfo(['955000797'], [DeGiro.PriceFields.last]).then(console.log);
+/*[
+  {
+    "issueId": "955000797",
+    "lastPrice": 7.621
+  }
+]*/
+```
+
+The available fields are:
+* DeGiro.PriceFields.**bid**,
+* DeGiro.PriceFields.**ask**,
+* DeGiro.PriceFields.**last**,
+* DeGiro.PriceFields.**bidTime**,
+* DeGiro.PriceFields.**bidDate**,
+* DeGiro.PriceFields.**askTime**,
+* DeGiro.PriceFields.**askDate**,
+* DeGiro.PriceFields.**lastTime**,
+* DeGiro.PriceFields.**lastDate**,
+* DeGiro.PriceFields.**open**,
+* DeGiro.PriceFields.**high**,
+* DeGiro.PriceFields.**low**,
+* DeGiro.PriceFields.**close**,
+* DeGiro.PriceFields.**lastVolume**,
+
+### getAskBidPrice
 
 ```javascript
 degiro.getAskBidPrice('350009261').then(console.log);
+/*
+{
+  "issueId": "350009261",
+  "bidPrice": 1134.01,
+  "askPrice": 1137,
+  "lastPrice": 1135,
+  "lastTime": "22:00:01"
+}
+*/
 ```
 
 ### getProductsById

@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 const querystring = require('querystring');
 const parseCookies = require('cookie').parse;
-const {Actions, OrderTypes, TimeTypes, ProductTypes, Sort} = require('./constants');
+const {Actions, OrderTypes, TimeTypes, ProductTypes, Sort, PriceFields} = require('./constants');
 const omitBy = require('lodash/omitBy');
 const omit = require('lodash/omit');
 const isNil = require('lodash/isNil');
@@ -95,16 +95,25 @@ const create = ({
         ).then(res => res.json());
     };
 
+    const PriceInfoDefaultFields = [
+        PriceFields.last,
+        PriceFields.lastTime,
+        PriceFields.lastDate
+    ];
     /**
-     * Use VWD session to get latest bid/ask prices for a VWD issue ID
+     * Use VWD session to get latest market prices for VWD issue IDs
      *
+     * @param {string[]} issueIds - Array of IDs of the products to query
      * @return {Promise}
      */
-    const getAskBidPrice = (issueId, timesChecked = 0) =>
+    const getPriceInfo = (issueIds, fields = PriceInfoDefaultFields, timesChecked = 0) =>
         requestVwdSession().then(vwdSession => {
             const checkData = res => {
                 timesChecked++;
-                const prices = {};
+                const prices = [];
+                issueIds.forEach(issueId => {
+                    prices[issueId] = {issueId};
+                });
 
                 //sanity check
                 if (!Array.isArray(res)) {
@@ -114,7 +123,7 @@ const create = ({
                 //retry needed?
                 if (res.length == 1 && res[0].m == 'h') {
                     if (timesChecked <= 3) {
-                        return getAskBidPrice(issueId, timesChecked);
+                        return getPriceInfo(issueIds, fields, timesChecked);
                     } else {
                         throw Error(
                             'Tried 3 times to get data, but nothing was returned: ' + JSON.stringify(res)
@@ -126,40 +135,57 @@ const create = ({
                 var keys = [];
                 res.forEach(row => {
                     if (row.m == 'a_req') {
-                        if (row.v[0].startsWith(issueId)) {
-                            var key = lcFirst(row.v[0].slice(issueId.length + 1));
-                            prices[key] = null;
-                            keys[row.v[1]] = key;
+                        var [issueId, field] = row.v[0].split('.');
+                        if (issueId in prices) {
+                            field = lcFirst(field);
+                            prices[issueId][field] = null;
+                            keys[row.v[1]] = [issueId, field];
                         }
                     } else if (row.m == 'un' || row.m == 'us') {
-                        prices[keys[row.v[0]]] = row.v[1];
+                        var [issueId, field] = keys[row.v[0]];
+                        prices[issueId][field] = row.v[1];
                     }
                 });
 
                 //check if everything is there
-                if (
-                    typeof prices.bidPrice == 'undefined' ||
-                    typeof prices.askPrice == 'undefined' ||
-                    typeof prices.lastPrice == 'undefined' ||
-                    typeof prices.lastTime == 'undefined'
-                ) {
-                    throw Error("Couldn't find all requested info: " + JSON.stringify(res));
-                }
+                issueIds.forEach(issueId => {
+                    fields.forEach(field => {
+                        if (typeof prices[issueId][lcFirst(field)] == 'undefined') {
+                            throw Error("Couldn't find all requested info: " + JSON.stringify(res));
+                        }
+                    });
+                });
 
-                return prices;
+                return issueIds.map(issueId => prices[issueId]);
             };
+
+            const controlData = issueIds.map(
+                issueId => fields.map(
+                    f => `req(${issueId}.${f})`
+                ).join(';')
+            ).join(';');
 
             return fetch(`https://degiro.quotecast.vwdservices.com/CORS/${vwdSession.sessionId}`, {
                 method: 'POST',
                 headers: {Origin: 'https://trader.degiro.nl'},
                 body: JSON.stringify({
-                    controlData: `req(${issueId}.BidPrice);req(${issueId}.AskPrice);req(${issueId}.LastPrice);req(${issueId}.LastTime);`,
+                    controlData,
                 }),
             })
                 .then(() => fetch(`https://degiro.quotecast.vwdservices.com/CORS/${vwdSession.sessionId}`))
                 .then(res => res.json())
                 .then(checkData);
         });
+
+    /**
+     * Use VWD session to get latest bid/ask prices for a VWD issue ID
+     *
+     * @return {Promise}
+     */
+    const getAskBidPrice = (issueId) => getPriceInfo(
+        [issueId],
+        [PriceFields.bid, PriceFields.ask, PriceFields.last, PriceFields.lastTime]
+    ).then(res => res[0]);
 
     /**
      * Get portfolio
@@ -282,7 +308,7 @@ const create = ({
      */
     const login = () => {
         log('login', username, '********');
-        let url = `${BASE_TRADER_URL}/login/secure/login`
+        let url = `${BASE_TRADER_URL}/login/secure/login`;
         let loginParams = {
             username,
             password,
@@ -290,7 +316,7 @@ const create = ({
             loginButtonUniversal: '',
             queryParams: {reason: 'session_expired'},
         };
- 
+
         if (oneTimePassword) {
             log('2fa token', oneTimePassword);
             url += '/totp';
@@ -298,8 +324,8 @@ const create = ({
         }
 
         return sendLoginRequest(url, loginParams);
-    }
- 
+    };
+
     const sendLoginRequest = (url, params) => {
         return fetch(url, {
                 method: 'POST',
@@ -485,6 +511,7 @@ const create = ({
         getCashFunds,
         getPortfolio,
         getAskBidPrice,
+        getPriceInfo,
         setOrder,
         deleteOrder,
         getOrders,
@@ -503,4 +530,5 @@ module.exports = {
     ProductTypes,
     TimeTypes,
     Sort,
+    PriceFields,
 };

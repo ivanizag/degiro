@@ -32,3 +32,20 @@ module.exports.Sort = {
     asc: 'asc',
     desc: 'desc',
 };
+
+module.exports.PriceFields = {
+    bid: 'BidPrice',
+    ask: 'AskPrice',
+    last: 'LastPrice',
+    bidTime: 'BidTime',
+    bidDate: 'BidDate',
+    askTime: 'AskTime',
+    askDate: 'AskDate',
+    lastTime: 'LastTime',
+    lastDate: 'LastDate',
+    open: 'OpenPrice',
+    high: 'HighPrice',
+    low: 'LowPrice',
+    close: 'ClosePrice',
+    lastVolume: 'LastVolume',
+};
